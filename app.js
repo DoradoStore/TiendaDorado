@@ -236,11 +236,10 @@ function renderProducts() {
         
         // Buscar precio
         const priceKeys = keys.filter(key => 
-            key.toLowerCase().includes('precio') || 
-            key.toLowerCase().includes('price') ||
-            key.toLowerCase().includes('costo') ||
-            key.toLowerCase().includes('cost')
+            key.toLowerCase().includes('precio')
+           
         );
+        console.log(priceKeys)
         const priceKey = priceKeys.length > 0 ? priceKeys[0] : null;
         const price = priceKey && product[priceKey] ? product[priceKey] : null;
         
