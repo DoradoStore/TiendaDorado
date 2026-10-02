@@ -350,10 +350,10 @@ function renderProducts() {
         };
 
         return `
-            <div class="product-card">
+            <div class="product-card" onclick="openModal('${productCardId}')">
                 ${imagesHTML}
                 <span class="product-category">${category}</span>
-                <h3 class="product-name" onclick="openModal('${productCardId}')">${product[nameKey] || 'Sin nombre'}</h3>
+                <h3 class="product-name">${product[nameKey] || 'Sin nombre'}</h3>
                 ${formattedPrice ? `<div class="product-price">${formattedPrice}</div>` : ''}
                 ${description ? `<p class="product-description">${description}</p>` : ''}
                 <button class="add-to-cart-btn" onclick="event.stopPropagation(); addToCart('${productCardId}')">
@@ -515,28 +515,28 @@ function convertYouTubeUrl(url) {
 window.openModal = function(productCardId) {
     const modal = document.getElementById('productModal');
     const modalBody = document.getElementById('modalBody');
-    
+
     // Obtener datos del producto por ID
     const productData = productsData[productCardId];
     if (!productData) {
         console.error('No se encontraron datos del producto:', productCardId);
         return;
     }
-    
+
     // Buscar campo de video
     const keys = Object.keys(productData.allData);
-    const videoKeys = keys.filter(key => 
-        key.toLowerCase().includes('video') || 
+    const videoKeys = keys.filter(key =>
+        key.toLowerCase().includes('video') ||
         key.toLowerCase().includes('vídeo')
     );
     const videoUrl = videoKeys.length > 0 ? productData.allData[videoKeys[0]] : null;
     const embedVideoUrl = videoUrl ? convertYouTubeUrl(videoUrl) : null;
-    
+
     // Generar carrusel para el modal
     let modalCarouselHTML = '';
     if (productData.images && productData.images.length > 0) {
         const modalCarouselId = `modal-carousel-${Math.random().toString(36).substr(2, 9)}`;
-        
+
         if (productData.images.length === 1) {
             modalCarouselHTML = `
                 <div class="modal-carousel">
@@ -568,7 +568,7 @@ window.openModal = function(productCardId) {
             `;
         }
     }
-    
+
     // Generar HTML del modal
     modalBody.innerHTML = `
         ${modalCarouselHTML}
@@ -578,7 +578,7 @@ window.openModal = function(productCardId) {
         ${productData.description ? `<p class="modal-description">${productData.description}</p>` : ''}
         ${embedVideoUrl ? `
             <div class="modal-video">
-                <iframe src="${embedVideoUrl}" allowfullscreen></iframe>
+                <iframe src="${embedVideoUrl}?autoplay=0" allowfullscreen></iframe>
             </div>
         ` : ''}
         ${videoUrl && !embedVideoUrl ? `
@@ -588,9 +588,12 @@ window.openModal = function(productCardId) {
             </div>
         ` : ''}
     `;
-    
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
+
+    // Mostrar modal después de un pequeño delay para asegurar que el DOM esté listo
+    requestAnimationFrame(() => {
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    });
 };
 
 // Función para cerrar el modal
