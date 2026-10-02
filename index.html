@@ -676,7 +676,7 @@
                 width: 100%;
                 overflow: hidden;
                 position: relative;
-                padding-bottom: 56.25%; /* 16:9 aspect ratio */
+                padding-bottom: 75%; /* Aspect ratio más alto para móviles */
                 height: 0;
             }
 
@@ -691,8 +691,8 @@
         }
 
         @media (max-width: 480px) {
-            .modal-video iframe {
-                height: 180px;
+            .modal-video {
+                padding-bottom: 85%; /* Aún más alto para pantallas muy pequeñas */
             }
         }
 
