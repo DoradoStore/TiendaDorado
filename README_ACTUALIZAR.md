@@ -54,15 +54,25 @@ rm carga_de_productos.xlsx
 ### 2. Guarda los cambios
 - Los cambios se aplican automáticamente
 
+## 🌐 Tecnologías
+
+Este catálogo usa:
+- **JavaScript puro** - Sin backend, sin PHP, sin Python
+- **HTML5 y CSS3** - Para la interfaz
+- **JSON** - Para almacenar datos
+- **Hosting estático** - Funciona en cualquier servidor web (Apache, Nginx, GitHub Pages, Netlify, Vercel, etc.)
+
 ## 🔒 Seguridad
 
-Los archivos de datos están protegidos:
-- `.htaccess` bloquea acceso directo a archivos JSON y Excel
-- Los archivos solo son accesibles vía API PHP
+Los campos sensibles se filtran automáticamente:
+- `costo` y `ganancia` se eliminan del JSON antes de mostrarlo
+- Los datos se cargan directamente en el navegador
 - Los nombres de archivos están ofuscados
 
 ## 📝 Notas
 
-- No uses nombres de archivos predecibles
+- No usa PHP ni backend - completamente estático
+- Funciona en cualquier hosting estático
+- Los datos se cargan directamente desde archivos JSON
 - Cambia el nombre ofuscado periódicamente
 - Mantén copias de seguridad de tus datos

@@ -1,5 +1,6 @@
-// URL del API local (más seguro que Google Sheet público)
-const dataUrl = 'api_data.php';
+// URLs de los archivos JSON
+const dataUrl = 'data_8f3k2l4m.json';
+const vendedoresUrl = 'vendedores.json';
 
 let allProducts = [];
 let filteredProducts = [];
@@ -70,7 +71,15 @@ async function cargarDatos() {
         
         const data = await respuesta.json();
         allProducts = data.productos || [];
-        
+
+        // Filtrar campos sensibles (costo y ganancia)
+        allProducts = allProducts.map(producto => {
+            const productoFiltrado = { ...producto };
+            delete productoFiltrado.costo;
+            delete productoFiltrado.ganancia;
+            return productoFiltrado;
+        });
+
         console.log(`Total de productos cargados:`, allProducts.length);
         sheetInfo.textContent = `Cargados ${allProducts.length} productos`;
         
@@ -813,12 +822,12 @@ window.showNotification = function(message) {
     }, 2000);
 };
 
-// Cargar datos de vendedores del API seguro
+// Cargar datos de vendedores del JSON
 async function cargarVendedores() {
     try {
-        const respuesta = await fetch('api_vendedores.php');
+        const respuesta = await fetch(vendedoresUrl);
         if (!respuesta.ok) throw new Error("No se encontró el archivo de vendedores");
-        
+
         vendedoresData = await respuesta.json();
         console.log("Vendedores cargados:", vendedoresData);
     } catch (error) {
