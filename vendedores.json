@@ -6,6 +6,13 @@
       "telefono": "573169159737",
       "email": "juan@ejemplo.com",
       "ciudad": "Bogotá"
+    },
+    {
+      "id": "jd",
+      "nombre": "Jhonatan Dorado",
+      "telefono": "573008935057",
+      "email": "otro@ejemplo.com",
+      "ciudad": "Melgar"
     }
   ],
   "default": {
