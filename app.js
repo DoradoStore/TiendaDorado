@@ -1,5 +1,7 @@
-// URLs de los archivos JSON
-const dataUrl = 'data_8f3k2l4m.json';
+// URL del Google Sheet
+const sheetId = '140YqHJYp4Ng-2SXD9uxNr_6BMkID_PSPlgLxNwVSXrA';
+const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`;
+
 const vendedoresUrl = 'vendedores.json';
 
 let allProducts = [];
@@ -10,23 +12,24 @@ let productsData = {}; // Almacenar datos de productos por ID
 let cart = []; // Carrito de compras
 let sellerInfo = {}; // Información del vendedor
 let vendedoresData = {}; // Datos de vendedores del JSON
+let sellerStats = {}; // Estadísticas de pedidos por vendedor
 
 // Función para convertir enlaces de Google Drive a URLs de thumbnail
 function convertGoogleDriveUrl(url) {
     if (!url) return null;
-    
+
     // Si ya es una URL de thumbnail, retornarla
     if (url.includes('drive.google.com/thumbnail')) {
         return url;
     }
-    
-    // Convertir enlace de Google Drive a URL de thumbnail (evita problemas CORB)
+
+    // Convertir enlace de Google Drive a URL de thumbnail
     const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (match && match[1]) {
         const fileId = match[1];
-        return `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
+        return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
     }
-    
+
     // Si no es un enlace de Google Drive, retornar la URL original
     return url;
 }
@@ -34,26 +37,81 @@ function convertGoogleDriveUrl(url) {
 // Función para verificar si una URL parece ser una imagen válida
 function isValidImageUrl(url) {
     if (!url) return false;
-    
+
     // URLs válidas de imágenes
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'];
     const lowerUrl = url.toLowerCase();
-    
+
     // Verificar si tiene extensión de imagen
     const hasImageExtension = imageExtensions.some(ext => lowerUrl.includes(ext));
-    
+
     // Verificar si es una URL de Google Drive thumbnail
     const isGoogleDriveImage = url.includes('drive.google.com/thumbnail');
-    
+
     // Verificar si es de un servicio de imágenes común
-    const isImageService = url.includes('imgur.com') || 
-                          url.includes('flickr.com') || 
+    const isImageService = url.includes('imgur.com') ||
+                          url.includes('flickr.com') ||
                           url.includes('cloudinary.com') ||
                           url.includes('unsplash.com') ||
                           url.includes('images.unsplash.com');
-    
+
     return hasImageExtension || isGoogleDriveImage || isImageService;
 }
+
+// Cargar estadísticas de vendedores desde localStorage
+function loadSellerStats() {
+    try {
+        const stored = localStorage.getItem('sellerStats');
+        if (stored) {
+            sellerStats = JSON.parse(stored);
+            console.log('Estadísticas cargadas:', sellerStats);
+        } else {
+            sellerStats = {};
+        }
+    } catch (error) {
+        console.error('Error al cargar estadísticas:', error);
+        sellerStats = {};
+    }
+}
+
+// Guardar estadísticas de vendedores en localStorage
+function saveSellerStats() {
+    try {
+        localStorage.setItem('sellerStats', JSON.stringify(sellerStats));
+        console.log('Estadísticas guardadas:', sellerStats);
+    } catch (error) {
+        console.error('Error al guardar estadísticas:', error);
+    }
+}
+
+// Incrementar contador de pedidos para un vendedor
+function incrementSellerCount(sellerId, sellerName) {
+    if (!sellerStats[sellerId]) {
+        sellerStats[sellerId] = {
+            id: sellerId,
+            name: sellerName,
+            orderCount: 0,
+            lastOrder: null
+        };
+    }
+    sellerStats[sellerId].orderCount += 1;
+    sellerStats[sellerId].lastOrder = new Date().toISOString();
+    saveSellerStats();
+}
+
+// Exportar estadísticas a archivo JSON
+window.exportSellerStats = function() {
+    const statsStr = JSON.stringify(sellerStats, null, 2);
+    const blob = new Blob([statsStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `estadisticas_vendedores_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
 
 // Elementos del DOM
 const productsGrid = document.getElementById('productsGrid');
@@ -63,22 +121,42 @@ const categorySelect = document.getElementById('categorySelect');
 const stats = document.getElementById('stats');
 const sheetInfo = document.getElementById('sheetInfo');
 
-// Cargar datos del JSON local
+// Cargar datos del Google Sheet
 async function cargarDatos() {
     try {
-        const respuesta = await fetch(dataUrl);
-        if (!respuesta.ok) throw new Error("No se pudo acceder a los datos.");
-        
-        const data = await respuesta.json();
-        allProducts = data.productos || [];
+        const respuesta = await fetch(sheetUrl);
+        if (!respuesta.ok) throw new Error("No se pudo acceder al Google Sheet.");
 
-        // Filtrar campos sensibles (costo y ganancia)
-        allProducts = allProducts.map(producto => {
-            const productoFiltrado = { ...producto };
-            delete productoFiltrado.costo;
-            delete productoFiltrado.ganancia;
-            return productoFiltrado;
+        const buffer = await respuesta.arrayBuffer();
+
+        // Leer el Excel usando XLSX
+        const workbook = XLSX.read(buffer, { type: 'array' });
+
+        // Leer todas las hojas
+        allProducts = [];
+
+        workbook.SheetNames.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            const data = XLSX.utils.sheet_to_json(sheet);
+
+            // Agregar nombre de la hoja como categoría si no existe
+            data.forEach(row => {
+                if (!row.categoria && !row.Categoría && !row.Categoria) {
+                    row.categoria = sheetName;
+                }
+                // Normalizar nombre de categoría
+                if (row.categoria) {
+                    row.categoria = row.categoria.trim();
+                }
+            });
+
+            allProducts = allProducts.concat(data);
         });
+
+        // Mostrar las columnas del primer producto para depuración
+        if (allProducts.length > 0) {
+            console.log('Columnas disponibles:', Object.keys(allProducts[0]));
+        }
 
         console.log(`Total de productos cargados:`, allProducts.length);
         sheetInfo.textContent = `Cargados ${allProducts.length} productos`;
@@ -217,23 +295,23 @@ function renderProducts() {
         const category = categoryKeys.length > 0 ? product[categoryKeys[0]] : (product._sheetName || 'General');
         
         // Buscar nombre del producto
-        const nameKeys = keys.filter(key => 
-            key.toLowerCase().includes('nombre') || 
+        const nameKeys = keys.filter(key =>
+            key.toLowerCase().includes('nombre') ||
             key.toLowerCase().includes('name') ||
             key.toLowerCase().includes('producto') ||
             key.toLowerCase().includes('product')
         );
         const nameKey = nameKeys.length > 0 ? nameKeys[0] : keys[0];
-        
+
         // Buscar campo de imagen (imagen, image, img, foto, photo)
-        const imageKeys = keys.filter(key => 
-            key.toLowerCase().includes('imagen') || 
+        const imageKeys = keys.filter(key =>
+            key.toLowerCase().includes('imagen') ||
             key.toLowerCase().includes('image') ||
             key.toLowerCase().includes('img') ||
             key.toLowerCase().includes('foto') ||
             key.toLowerCase().includes('photo')
         );
-        
+
         // Obtener URLs de imágenes del campo "imagen" separadas por comas
         let images = [];
         if (imageKeys.length > 0) {
@@ -247,19 +325,34 @@ function renderProducts() {
                     .filter(url => url && isValidImageUrl(url));
             }
         }
-        
-        // Buscar precio
-        const priceKeys = keys.filter(key => 
-            key.toLowerCase().includes('precio')
-           
+
+        // Buscar precio (más flexible)
+        const priceKeys = keys.filter(key =>
+            key.toLowerCase().includes('precio') ||
+            key.toLowerCase().includes('price') ||
+            key.toLowerCase().includes('valor') ||
+            key.toLowerCase().includes('costo')
         );
-      
+
         const priceKey = priceKeys.length > 0 ? priceKeys[0] : null;
-        const price = priceKey && product[priceKey] ? product[priceKey] : null;
-        
+        let price = null;
+        if (priceKey && product[priceKey] !== null && product[priceKey] !== undefined) {
+            // Limpiar el precio: remover $, comas y espacios
+            const priceString = String(product[priceKey])
+                .replace(/[$,]/g, '')
+                .trim();
+            price = parseFloat(priceString);
+            if (isNaN(price)) {
+                console.log('Precio inválido:', product[priceKey], '->', priceString, '->', price);
+                price = null;
+            }
+        }
+
+        console.log('Producto:', product[nameKey], 'Precio key:', priceKey, 'Precio:', price);
+
         // Buscar descripción
-        const descKeys = keys.filter(key => 
-            key.toLowerCase().includes('descripción') || 
+        const descKeys = keys.filter(key =>
+            key.toLowerCase().includes('descripción') ||
             key.toLowerCase().includes('descripcion') ||
             key.toLowerCase().includes('description') ||
             key.toLowerCase().includes('desc')
@@ -269,8 +362,8 @@ function renderProducts() {
         
         // Filtrar otros detalles excluyendo campos especiales
         const excludedKeys = ['_sheetName', nameKey, ...categoryKeys, ...imageKeys, ...priceKeys, ...descKeys];
-        const activeKeys = keys.filter(key => 
-            key.toLowerCase().includes('activo') || 
+        const activeKeys = keys.filter(key =>
+            key.toLowerCase().includes('activo') ||
             key.toLowerCase().includes('active') ||
             key.toLowerCase().includes('estado') ||
             key.toLowerCase().includes('status')
@@ -301,7 +394,7 @@ function renderProducts() {
             return '';
         }).filter(html => html !== '').join('');
 
-        // Formatear precio
+        // Formatear precio (solo para carrito, no se muestra en tarjeta)
         const formattedPrice = price ? `$${Number(price).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
 
         // Generar HTML del carrusel si hay imágenes
@@ -343,7 +436,7 @@ function renderProducts() {
             name: product[nameKey] || 'Sin nombre',
             category: category,
             price: formattedPrice,
-            priceValue: price, // Valor numérico para cálculos
+            priceValue: price, // Valor numérico para cálculos en carrito
             description: description,
             images: images,
             allData: product
@@ -622,22 +715,22 @@ document.addEventListener('keydown', function(event) {
 window.addToCart = function(productCardId) {
     const product = productsData[productCardId];
     if (!product) return;
-    
+
     const existingItem = cart.find(item => item.id === productCardId);
-    
+
     if (existingItem) {
         existingItem.quantity += 1;
     } else {
         cart.push({
             id: productCardId,
             name: product.name,
-            price: product.price,
-            priceValue: product.priceValue,
+            price: product.price || 'Precio no disponible',
+            priceValue: product.priceValue || 0,
             image: product.images[0] || null,
             quantity: 1
         });
     }
-    
+
     updateCartCount();
     showNotification('Producto agregado al carrito');
 };
@@ -698,19 +791,19 @@ window.renderCart = function() {
     const currentSellerElement = document.getElementById('currentSeller');
     const sellerSelectElement = document.getElementById('sellerSelect');
     const sellerSection = document.querySelector('.cart-seller-section');
-    
+
     if (cart.length === 0) {
         cartItemsContainer.innerHTML = '<p class="empty-cart">Tu carrito está vacío</p>';
         cartTotalElement.textContent = '$0.00';
         return;
     }
-    
+
     let total = 0;
-    
+
     cartItemsContainer.innerHTML = cart.map(item => {
         const itemTotal = item.priceValue * item.quantity;
         total += itemTotal;
-        
+
         return `
             <div class="cart-item">
                 ${item.image ? `<img src="${item.image}" alt="${item.name}">` : '<div class="cart-item-placeholder"></div>'}
@@ -727,7 +820,7 @@ window.renderCart = function() {
             </div>
         `;
     }).join('');
-    
+
     cartTotalElement.textContent = `$${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     
     // Eliminar botón de cambiar vendedor si existe
@@ -904,20 +997,33 @@ window.sendToWhatsApp = function() {
         alert('Tu carrito está vacío');
         return;
     }
-    
+
     // Verificar que haya un vendedor seleccionado
     if (!sellerInfo || !sellerInfo.phone) {
         alert('Por favor, selecciona un vendedor antes de enviar el pedido');
         return;
     }
-    
+
+    // Verificar que el cliente haya ingresado su nombre
+    const customerNameInput = document.getElementById('customerName');
+    const customerName = customerNameInput ? customerNameInput.value.trim() : '';
+
+    if (!customerName) {
+        alert('Por favor, escribe tu nombre antes de enviar el pedido');
+        if (customerNameInput) {
+            customerNameInput.focus();
+        }
+        return;
+    }
+
     const phone = sellerInfo.phone;
-    
+
     // Generar mensaje
     let message = `🛒 *Nuevo Pedido*\n\n`;
-    message += `👤 *Vendedor:* ${sellerInfo.name || 'No especificado'}\n\n`;
+    message += `👤 *Cliente:* ${customerName}\n`;
+    message += `📞 *Vendedor:* ${sellerInfo.name || 'No especificado'}\n\n`;
     message += `📦 *Productos:*\n\n`;
-    
+
     let total = 0;
     cart.forEach((item, index) => {
         const itemTotal = item.priceValue * item.quantity;
@@ -927,28 +1033,131 @@ window.sendToWhatsApp = function() {
         message += `   Precio unitario: ${item.price}\n`;
         message += `   Subtotal: $${itemTotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n\n`;
     });
-    
+
     message += `💰 *Total: $${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}*\n\n`;
     message += `📍 Por favor, envía los detalles de entrega y pago.`;
-    
+
     // Codificar mensaje para URL
     const encodedMessage = encodeURIComponent(message);
-    
+
     // Abrir WhatsApp
     const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
     window.open(whatsappUrl, '_blank');
-    
+
+    // Incrementar contador de pedidos para este vendedor
+    incrementSellerCount(sellerInfo.id, sellerInfo.name);
+
     // Opcional: Limpiar carrito después de enviar
     // cart = [];
     // updateCartCount();
     // closeCart();
 };
 
+// Funciones del modal de estadísticas
+window.openStatsModal = function() {
+    const modal = document.getElementById('statsModal');
+    const statsContent = document.getElementById('statsContent');
+
+    // Generar tabla de estadísticas
+    const statsArray = Object.values(sellerStats);
+
+    if (statsArray.length === 0) {
+        statsContent.innerHTML = '<p style="text-align: center; color: #666;">No hay estadísticas disponibles aún.</p>';
+    } else {
+        // Ordenar por número de pedidos (descendente)
+        statsArray.sort((a, b) => b.orderCount - a.orderCount);
+
+        let tableHTML = `
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Vendedor</th>
+                        <th>Pedidos</th>
+                        <th>Último Pedido</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        statsArray.forEach(stat => {
+            const lastOrderDate = stat.lastOrder ? new Date(stat.lastOrder).toLocaleString('es-MX') : 'N/A';
+            tableHTML += `
+                <tr>
+                    <td>${stat.name}</td>
+                    <td class="stats-count">${stat.orderCount}</td>
+                    <td>${lastOrderDate}</td>
+                </tr>
+            `;
+        });
+
+        tableHTML += `
+                </tbody>
+            </table>
+        `;
+
+        statsContent.innerHTML = tableHTML;
+    }
+
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+};
+
+window.closeStatsModal = function() {
+    const modal = document.getElementById('statsModal');
+    modal.style.display = 'none';
+    document.body.style.overflow = 'auto';
+};
+
+// Verificar si el usuario es admin (mediante parámetro en URL)
+function checkAdminAccess() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const adminKey = urlParams.get('admin');
+
+    // Clave secreta para acceder a estadísticas
+    const SECRET_KEY = 'admin2024';
+
+    if (adminKey === SECRET_KEY) {
+        const statsBtn = document.querySelector('.stats-btn');
+        if (statsBtn) {
+            statsBtn.classList.add('visible');
+        }
+        console.log('Modo admin activado - Estadísticas disponibles');
+    }
+}
+
+// Acceso mediante combinación de teclas (Ctrl+Shift+S)
+let keySequence = [];
+const SECRET_SEQUENCE = ['Control', 'Shift', 'KeyS'];
+
+document.addEventListener('keydown', function(event) {
+    keySequence.push(event.code);
+
+    // Mantener solo los últimos 3 eventos
+    if (keySequence.length > 3) {
+        keySequence.shift();
+    }
+
+    // Verificar si la secuencia coincide
+    if (keySequence.length === 3) {
+        const matches = keySequence.every((key, index) => key === SECRET_SEQUENCE[index]);
+        if (matches) {
+            const statsBtn = document.querySelector('.stats-btn');
+            if (statsBtn) {
+                statsBtn.classList.toggle('visible');
+                console.log('Botón de estadísticas:', statsBtn.classList.contains('visible') ? 'visible' : 'oculto');
+            }
+            keySequence = [];
+        }
+    }
+});
+
 // Inicializar
 async function inicializar() {
+    loadSellerStats();
     await cargarVendedores();
     detectSellerInfo();
     cargarDatos();
+    checkAdminAccess();
 }
 
 inicializar();
